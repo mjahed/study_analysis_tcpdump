@@ -1,0 +1,123 @@
+
+line = ""
+count=0
+time_slot = 0
+time_slot_prev = 0
+count_port = Hash.new
+count_port["TCP"] = Hash.new(0)
+count_port["UDP"] = Hash.new(0)
+count_srcIP = Hash.new
+
+while (line != nil) do
+  line = STDIN.gets
+
+  if (line == nil) then
+    next
+  end
+
+  data = line.split(" ")
+
+  if (data == []) then
+    next
+  end
+
+  if (data[1] != "IP") then
+    next
+  end
+
+  src = data[2]
+  dst = data[4]
+  #if (src.index("172.23") != 0) then
+#    next # Skip if src does not includes "172.23....."
+#  end
+  # Afterhere, Only prcessed for 172.23....
+  ##########################
+  # (2) For Unique Source IP
+  if (src.index("172.23.26.132") != 0 and "172.23.8.67") !=0 then
+    # these two IPs were detected as suspicious to do a farther investigation about them
+    # I want the program to process the information only form these IPs
+    next
+  end
+  #########################
+
+tmp1 = src.split(".")
+tmp2 = dst.split(".")
+#  p tmp
+
+   src_ip = tmp1[0,4].join(".")
+   src_port = tmp1[4]
+   dst_ip = tmp2[0,4].join(".")
+   dst_port = tmp2[4].to_i
+
+
+  if (data[5] == "TCP" or data[5] == "UDP" or data[5] == "ICMP") then
+    proto = data[5]
+  elsif (data[5] == "UDP,") then
+    proto = "UDP"
+  elsif (data[5] == "Flags") then
+    proto = "TCP"
+  elsif (data[5] == "NBT") then # File server
+    proto = "UDP"
+  elsif (data[5] =~ /[0-9]+++/) then # DNS
+    proto = "UDP"
+  else
+    next
+  end
+
+  time = data[0].to_f
+  size = data[-1]
+
+  # .....
+  tmp_pktsize = line.scan(/length ([0-9]+)/)
+  if (tmp_pktsize != nil) then
+    pktsize = tmp_pktsize[0]					# packet size
+    if (pktsize == nil) then
+        pktsize = 0
+    else
+        pktsize = tmp_pktsize[0][0]
+    end
+  end
+
+  time_slot = time.to_i / 100 # 15min x 60 sec
+  time_slot_prev = time_slot
+
+###
+  # (1)
+  if (proto == "TCP") then
+    count_port["TCP"][dst_port] += 1
+  end
+  if (proto == "UDP") then
+    count_port["UDP"][dst_port] += 1
+  end
+
+  ###
+  if (count_srcIP[dst_port] == nil) then
+    count_srcIP[dst_port] = Array.new
+  end
+  count_srcIP[dst_port].push(src_ip)
+
+  ########
+    data = count_port["TCP"]
+    i = 1
+    data.each_pair do |k,v|
+      printf("%d,  %d,  %d, %d, %f\n", i, k, v, count_srcIP[k].uniq.size, v.to_f/count_srcIP[k].uniq.size)
+      break if (i==20)
+      i += 1
+    end
+
+    data = count_port["UDP"]
+    data.each_pair do |k,v|
+#    printf("%d : %d\n", k, v)
+  #  end
+
+  # Initialize
+  count_port["TCP"] = Hash.new(0)
+  count_port["UDP"] = Hash.new(0)
+
+  count_srcIP = Hash.new
+  end
+end
+# when I run, it does not produce any informaiton:
+# tcpdump -tt -l -n  -r 20161004950AM.pacp | ruby sample.pcapanalysis_Unique_SIP.rb
+#reading from file 20161004950AM.pacp, link-type EN10MB (Ethernet)
+#tcpdump: pcap_loop: truncated dump file; tried to read 1514 captured bytes, only got 0
